@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LSS-Fahrzeuge aneinanderbinden
 // @namespace    https://www.leitstellenspiel.de/
-// @version      2.6
-// @description  Bindet Fahrzeuge andeinander und setzt automatisch die Checkbox wenn das andere ausgewählt wird.
+// @version      2.7
+// @description  Bindet Fahrzeuge aneinander und setzt automatisch die Checkbox, wenn das andere ausgewählt wird.
 // @author       MissSobol
 // @match        https://www.leitstellenspiel.de/*
 // @grant        none
@@ -12,7 +12,7 @@
 async function getVehicles() {
   const response = await fetch('https://www.leitstellenspiel.de/api/vehicles');
   const data = await response.json();
-//  console.log('API-Antwort:', data); // Konsolenausgabe der API-Antwort
+  //  console.log('API-Antwort:', data); // Konsolenausgabe der API-Antwort
   return data;
 }
 
@@ -63,12 +63,16 @@ if (match) {
 
   const inputContainer = document.createElement('div');
   const existingPairs = loadIDPairs();
-  const boundVehicle = existingPairs.find((pair) => pair.fahrzeug1ID === vehicleID || pair.fahrzeug2ID === vehicleID);
+  const boundVehicle = existingPairs.find(
+    (pair) => pair.fahrzeug1ID === vehicleID || pair.fahrzeug2ID === vehicleID
+  );
 
   if (boundVehicle) {
-    const boundVehicleID = boundVehicle.fahrzeug1ID === vehicleID ? boundVehicle.fahrzeug2ID : boundVehicle.fahrzeug1ID;
+    const boundVehicleID =
+      boundVehicle.fahrzeug1ID === vehicleID ? boundVehicle.fahrzeug2ID : boundVehicle.fahrzeug1ID;
     const boundVehicleText = document.createElement('span');
-    boundVehicleText.textContent = `Dieses Fahrzeug ist gebunden an das Fahrzeug mit der ID: ${boundVehicleID}`;
+    const boundVehicleCaption = await getCaptionByID(boundVehicleID);
+    boundVehicleText.textContent = `Dieses Fahrzeug ist gebunden an das Fahrzeug: ${boundVehicleCaption}`;
     inputContainer.appendChild(boundVehicleText);
 
     boundVehicleText.addEventListener('click', () => {
@@ -82,12 +86,11 @@ if (match) {
       }
     });
   } else {
-const vehicle2IDInput = document.createElement('input');
-vehicle2IDInput.type = 'text';
-vehicle2IDInput.id = 'vehicle2ID';
-vehicle2IDInput.name = 'vehicle2ID';
-vehicle2IDInput.setAttribute('list', 'vehicleList');
-
+    const vehicle2IDInput = document.createElement('input');
+    vehicle2IDInput.type = 'text';
+    vehicle2IDInput.id = 'vehicle2ID';
+    vehicle2IDInput.name = 'vehicle2ID';
+    vehicle2IDInput.setAttribute('list', 'vehicleList');
 
     const vehicleList = document.createElement('datalist');
     vehicleList.id = 'vehicleList';
@@ -127,8 +130,6 @@ vehicle2IDInput.setAttribute('list', 'vehicleList');
       }
     });
 
-//    console.log('Vor dem Hinzufügen der Input-Elemente:', inputContainer);
-
     // Laden der ID-Paare aus dem Local Storage
     const existingPairs = loadIDPairs();
 
@@ -142,18 +143,23 @@ vehicle2IDInput.setAttribute('list', 'vehicleList');
       vehicles.forEach((vehicle) => {
         const option = document.createElement('option');
         const vehicleID = vehicle.id.toString();
-        const vehicleCaption = vehicle.caption.toLowerCase();
+        const vehicleCaption = vehicle.caption;
 
-        if (vehicleID.includes(userInput) || vehicleCaption.includes(userInput)) {
+        if (vehicleID.includes(userInput) || vehicleCaption.toLowerCase().includes(userInput)) {
           option.value = vehicleID;
           option.textContent = `${vehicleCaption} (${vehicleID})`;
           vehicleList.appendChild(option);
         }
       });
     });
-
-//    console.log('Nach dem Hinzufügen der Input-Elemente:', inputContainer);
   }
 
   document.body.appendChild(inputContainer);
+}
+
+// Hilfsfunktion zum Abrufen der Caption anhand der ID
+async function getCaptionByID(vehicleID) {
+  const response = await fetch(`https://www.leitstellenspiel.de/api/vehicles/${vehicleID}`);
+  const data = await response.json();
+  return data.caption;
 }
