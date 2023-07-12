@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LSS-Fahrzeuge aneinanderbinden
 // @namespace    https://www.leitstellenspiel.de/
-// @version      2.0
+// @version      2.6
 // @description  Bindet Fahrzeuge andeinander und setzt automatisch die Checkbox wenn das andere ausgewählt wird.
 // @author       MissSobol
 // @match        https://www.leitstellenspiel.de/*
@@ -12,6 +12,7 @@
 async function getVehicles() {
   const response = await fetch('https://www.leitstellenspiel.de/api/vehicles');
   const data = await response.json();
+//  console.log('API-Antwort:', data); // Konsolenausgabe der API-Antwort
   return data;
 }
 
@@ -61,56 +62,98 @@ if (match) {
   const vehicleID = match[1];
 
   const inputContainer = document.createElement('div');
-  inputContainer.innerHTML = `
-    <label for="vehicle2ID">An dieses Fahrzeug fest ankoppeln:</label>
-    <input type="text" id="vehicle2ID" name="vehicle2ID" list="vehicleList">
-    <datalist id="vehicleList"></datalist>
-    <button id="saveButton">Speichern</button>
-  `;
+  const existingPairs = loadIDPairs();
+  const boundVehicle = existingPairs.find((pair) => pair.fahrzeug1ID === vehicleID || pair.fahrzeug2ID === vehicleID);
 
-  document.body.appendChild(inputContainer);
+  if (boundVehicle) {
+    const boundVehicleID = boundVehicle.fahrzeug1ID === vehicleID ? boundVehicle.fahrzeug2ID : boundVehicle.fahrzeug1ID;
+    const boundVehicleText = document.createElement('span');
+    boundVehicleText.textContent = `Dieses Fahrzeug ist gebunden an das Fahrzeug mit der ID: ${boundVehicleID}`;
+    inputContainer.appendChild(boundVehicleText);
 
-  const saveButton = document.getElementById('saveButton');
-  saveButton.addEventListener('click', async () => {
-    const vehicle2IDInput = document.getElementById('vehicle2ID');
-    const vehicle2ID = vehicle2IDInput.value.trim();
+    boundVehicleText.addEventListener('click', () => {
+      const confirmDisconnect = confirm('Soll die Verbindung wirklich getrennt werden?');
 
-    if (vehicle2ID) {
-      const vehicles = await getVehicles();
-      const vehicleIDs = vehicles.map((vehicle) => vehicle.id.toString());
-      const vehicleCaptions = vehicles.map((vehicle) => vehicle.caption);
-
-      if (vehicleIDs.includes(vehicle2ID) || vehicleCaptions.includes(vehicle2ID)) {
-        saveIDPair(vehicleID, vehicle2ID);
-        alert('ID-Paar erfolgreich gespeichert!');
-        vehicle2IDInput.value = '';
-      } else {
-        alert('Fahrzeug-ID existiert nicht!');
-      }
-    } else {
-      alert('Bitte gib eine Fahrzeug-ID ein!');
-    }
-  });
-
-  // Vorschläge für Fahrzeug-IDs anzeigen
-  const vehicle2IDInput = document.getElementById('vehicle2ID');
-  vehicle2IDInput.addEventListener('input', async () => {
-    const vehicles = await getVehicles();
-    const vehicleList = document.getElementById('vehicleList');
-    vehicleList.innerHTML = '';
-
-    const userInput = vehicle2IDInput.value.trim().toLowerCase();
-
-    vehicles.forEach((vehicle) => {
-      const option = document.createElement('option');
-      const vehicleID = vehicle.id.toString();
-      const vehicleCaption = vehicle.caption.toLowerCase();
-
-      if (vehicleID.includes(userInput) || vehicleCaption.includes(userInput)) {
-        option.value = vehicleID;
-        option.textContent = `${vehicleCaption} (${vehicleID})`;
-        vehicleList.appendChild(option);
+      if (confirmDisconnect) {
+        const updatedPairs = existingPairs.filter((pair) => pair !== boundVehicle);
+        localStorage.setItem('vehiclePairs', JSON.stringify(updatedPairs));
+        alert('Die Verbindung wurde getrennt.');
+        window.location.reload();
       }
     });
-  });
+  } else {
+const vehicle2IDInput = document.createElement('input');
+vehicle2IDInput.type = 'text';
+vehicle2IDInput.id = 'vehicle2ID';
+vehicle2IDInput.name = 'vehicle2ID';
+vehicle2IDInput.setAttribute('list', 'vehicleList');
+
+
+    const vehicleList = document.createElement('datalist');
+    vehicleList.id = 'vehicleList';
+
+    const saveButton = document.createElement('button');
+    saveButton.id = 'saveButton';
+    saveButton.textContent = 'Speichern';
+
+    inputContainer.appendChild(document.createTextNode('An dieses Fahrzeug fest ankoppeln: '));
+    inputContainer.appendChild(vehicle2IDInput);
+    inputContainer.appendChild(document.createElement('br'));
+    inputContainer.appendChild(vehicleList);
+    inputContainer.appendChild(document.createElement('br'));
+    inputContainer.appendChild(saveButton);
+
+    saveButton.addEventListener('click', async () => {
+      const vehicle2ID = vehicle2IDInput.value.trim();
+
+      if (vehicle2ID) {
+        const vehicles = await getVehicles();
+        const filteredVehicles = vehicles.filter((vehicle) => {
+          const vehicleID = vehicle.id.toString();
+          const vehicleCaption = vehicle.caption.toLowerCase();
+          return vehicleID.includes(vehicle2ID) || vehicleCaption.includes(vehicle2ID);
+        });
+
+        if (filteredVehicles.length > 0) {
+          const selectedVehicle = filteredVehicles[0];
+          saveIDPair(vehicleID, selectedVehicle.id.toString());
+          alert('ID-Paar erfolgreich gespeichert!');
+          vehicle2IDInput.value = '';
+        } else {
+          alert('Fahrzeug-ID existiert nicht!');
+        }
+      } else {
+        alert('Bitte gib eine Fahrzeug-ID ein!');
+      }
+    });
+
+//    console.log('Vor dem Hinzufügen der Input-Elemente:', inputContainer);
+
+    // Laden der ID-Paare aus dem Local Storage
+    const existingPairs = loadIDPairs();
+
+    // Vorschläge für Fahrzeug-IDs anzeigen
+    vehicle2IDInput.addEventListener('input', async () => {
+      const vehicles = await getVehicles();
+      vehicleList.innerHTML = '';
+
+      const userInput = vehicle2IDInput.value.trim().toLowerCase();
+
+      vehicles.forEach((vehicle) => {
+        const option = document.createElement('option');
+        const vehicleID = vehicle.id.toString();
+        const vehicleCaption = vehicle.caption.toLowerCase();
+
+        if (vehicleID.includes(userInput) || vehicleCaption.includes(userInput)) {
+          option.value = vehicleID;
+          option.textContent = `${vehicleCaption} (${vehicleID})`;
+          vehicleList.appendChild(option);
+        }
+      });
+    });
+
+//    console.log('Nach dem Hinzufügen der Input-Elemente:', inputContainer);
+  }
+
+  document.body.appendChild(inputContainer);
 }
