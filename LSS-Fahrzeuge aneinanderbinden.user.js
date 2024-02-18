@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LSS-Fahrzeuge aneinanderbinden
 // @namespace    https://www.leitstellenspiel.de/
-// @version      2.9r
+// @version      2.10
 // @description  Bindet Fahrzeuge aneinander und setzt automatisch die Checkbox, wenn das andere ausgewählt wird.
 // @author       MissSobol
 // @match        https://www.leitstellenspiel.de/*
@@ -12,7 +12,6 @@
 async function getVehicles() {
   const response = await fetch('https://www.leitstellenspiel.de/api/vehicles');
   const data = await response.json();
-  //  console.log('API-Antwort:', data); // Konsolenausgabe der API-Antwort
   return data;
 }
 
@@ -29,7 +28,44 @@ function loadIDPairs() {
   return existingPairs;
 }
 
-// Funktion zum Überprüfen der Checkboxen der Fahrzeuge und Auslösen des "change" Events
+// Funktion zum Exportieren der gespeicherten ID-Paare
+function exportIDPairs() {
+  const existingPairs = loadIDPairs();
+  const exportData = JSON.stringify(existingPairs);
+  const blob = new Blob([exportData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vehiclePairs.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Funktion zum Importieren von ID-Paaren
+function importIDPairs() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const importedPairs = JSON.parse(e.target.result);
+        localStorage.setItem('vehiclePairs', JSON.stringify(importedPairs));
+        alert('ID-Paare erfolgreich importiert!');
+        window.location.reload();
+      } catch (error) {
+        console.error('Fehler beim Importieren der ID-Paare:', error);
+        alert('Fehler beim Importieren der ID-Paare!');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+// Überwachung der Checkboxen bei Änderungen
 function syncCheckboxes() {
   const vehiclePairs = loadIDPairs();
   vehiclePairs.forEach(async (pair) => {
@@ -48,20 +84,16 @@ function syncCheckboxes() {
   });
 }
 
-// Überwachung der Checkboxen bei Änderungen
-document.addEventListener('change', syncCheckboxes);
-
 // Überwachung der Checkboxen bei Aktualisierungen durch das System
 setInterval(syncCheckboxes, 1000); // Überprüfung alle 1 Sekunde (kann angepasst werden)
 
-// Überprüfung der URL und Einfügen der Fahrzeug-ID-Eingabefelder
+// Überwachung der URL und Einfügen der Fahrzeug-ID-Eingabefelder
 const urlRegex = /https:\/\/www.leitstellenspiel.de\/vehicles\/(\d+)\/edit/;
 const match = window.location.href.match(urlRegex);
 
 if (match) {
-  const vehicleID = match[1];
-
   const inputContainer = document.createElement('div');
+  const vehicleID = match[1];
   const existingPairs = loadIDPairs();
   const boundVehicle = existingPairs.find(
     (pair) => pair.fahrzeug1ID === vehicleID || pair.fahrzeug2ID === vehicleID
@@ -86,6 +118,19 @@ if (match) {
       }
     });
   } else {
+    const exportButton = document.createElement('button');
+    exportButton.textContent = 'Exportieren';
+    exportButton.addEventListener('click', exportIDPairs);
+
+    const importButton = document.createElement('button');
+    importButton.textContent = 'Importieren';
+    importButton.addEventListener('click', importIDPairs);
+
+    inputContainer.appendChild(document.createTextNode('Exportieren/Importieren von ID-Paaren: '));
+    inputContainer.appendChild(exportButton);
+    inputContainer.appendChild(importButton);
+    inputContainer.appendChild(document.createElement('br'));
+
     const vehicle2IDInput = document.createElement('input');
     vehicle2IDInput.type = 'text';
     vehicle2IDInput.id = 'vehicle2ID';
